@@ -19,8 +19,8 @@ for src, dst, w, time in reader:
   give[src] = getattr(give, src, 0) + w
   num_give[src] = getattr(give, src, 0) + 1
 
-  rcv[dst] = getattr(rcv, src, 0) + w
-  num_rcv[dst] = getattr(rcv, src, 0) + 1
+  rcv[dst] = getattr(rcv, dst, 0) + w
+  num_rcv[dst] = getattr(rcv, dst, 0) + 1
 
 plt.bar(np.arange(-10, 11), vs)
 plt.savefig("raw_weights.png")
