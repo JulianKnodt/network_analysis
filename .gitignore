@@ -2,3 +2,5 @@
 *.csv
 *.swp
 graph.dot
+.gitignore
+.DS_Store
