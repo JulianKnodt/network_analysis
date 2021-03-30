@@ -1,98 +1,54 @@
 import csv
 import networkx as nx
+import torch
 
-#T: total time, step: duration of each phase
-#this ignores that T may not be divisible by step, but can throw away some last bit if we want
-def increment(step, src, dst, w):
-  T = len(w)
-  #assume that src etc are given as vectors
-  #output variables;;;;ratee(r)'s average rating
-  avg_ratee_out[], num_ratee_out[]
-  #output variables;;;ratee(r)'s number of ratings
-  avg_rater_out[], num_rater_out[]
-  #output variables;;;rateer's neighbors' average/number of ratings of some fixed ratee
-  avg_nbhd_out[][], num_nbhd_out[][]
-  # output variable;
-  avg_global_out[]
-  # output variable;
-  sum_global_out[]
+device = torch.device("cpu")
+if torch.cuda.is_available():
+  device = torch.device("cuda:0")
 
-  #ratee(r)'s average rating with phase=(something)
-  sum_ratee[][],sum_rater[][]
-  #ratee(r)'s number of ratings with phase=(something)
-  num_rater[][],num_rater[][]
-  #rater's neighbors' total ratings of some fixed ratee;;;this does not take "phase" as argument
-  #rater's neighbors' number of some fixed ratee;;;this does not take "phase" as argument
-  sum_nbhd[][],num_nbhd[][]
-  #adjacency list? need an array of <set> for example adj[person] is the adjency list of person
-  adj
-  #(global) total ratings
-  sum_global
-  # (global) total number of transactions
-  num_global
+def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
-  # it's actually better to iterate over current and ise phase=current/step
-
-  for phase in range(0,T/step):
-    for t in range(0,step):
-      current = phase*step+t
-      sum_rater[src[current]][phase]+=w[current]
-      num_rater[src[current]][phase]++
-      sum_ratee[dst[current]][phase]+=w[current]
-      num_ratee[dst[current]][phase]++
-      num_global++
-      sum_global+=w[current]
-      for neighbor in adj[src[current]]:
-          sum_nbhd[neighbor][dst[current]]+=w[current]
-          num_nbhd[neighbor][dst[current]]++
-      #not sure if it is the right method
-      #also try not to make a suplicate object
-      adj[src[current]].add(dst[current])
-      adj[dst[current]].add(src[current])
-
-      avg_ratee_out[current]=sum_ratee[dst[current]][phase]/num_ratee[dst[current]][phase]
-      num_ratee_out[current]=num_ratee[dst[current]][phase]
-      avg_rater_out[current]=sum_rater[src[current]][phase]/num_rater[src[current]][phase]
-      num_rater_out[current]=num_rater[src[current]][phase]
-      avg_nbhd_out[current]=sum_nbhd[neighbor][dst[current]]/num_nbhd[neighbor][dst[current]]
-      num_nbhd_out[current]=num_nbhd[neighbor][dst[current]]
-      avg_global_out[current]=sum_global/num_global
-      num_global_out[current]=num_global
-  return avg_ratee_out,num_ratee_out,avg_rater_out,num_rater_out,avg_nbhd_out,num_nbhd_out,avg_global_out,num_global_out
-
-def feature_vectors(src: [int], dst: [int], ratings: [float], phase_len=30):
+def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], phase_len=3000):
   assert(len(src) == len(ratings))
   assert(len(dst) == len(ratings))
+  print(len(src))
   G = nx.DiGraph()
   T = len(ratings)
   rater_sums = {}
   n_raters = {}
   ratee_sums = {}
   n_ratees = {}
+  total_ratings = 0
 
-  for phase in range(0, T/phase_len):
-    start = phase_len * phase
-    rtr_sums = [0] * T
-    rte_sums = [0] * T
-    n_rtr = [0] * T
-    n_rte = [0] * T
+  phases = T//phase_len
+  FEATURES = 5
+
+  # feature vectors for each phase for each node
+  feats = torch.zeros(max_node, phases, FEATURES, device=device, dtype=torch.float)
+  # How was this person rated on average before this phase?
+  labels = torch.zeros(max_node, phases, device=device, dtype=torch.float)
+
+  for p in range(0, phases):
+    start = phase_len * p
+    rtr_sums = [0] * max_node
+    rte_sums = [0] * max_node
+    n_rtr = [0] * max_node
+    n_rte = [0] * max_node
     for t in range(start, start+phase_len):
-      rtr_sums[src[t]] += ratings[t]
-      n_rtr[src[t]] += 1
-      rte_sums[dst[t]] += ratings[t]
-      n_rtr[dst[t]] += 1
+      s,d,r = src[t], dst[t], ratings[t]
+      rtr_sums[s] += r
+      n_rtr[s] += 1
+      rte_sums[d] += r
+      n_rtr[d] += 1
+      #for nbr in G.adj[s]
+      #  nbhd_s[nbr][d] += w
+      #  n_nbhd[nbr][d] += 1
+      #G.add_edge(s, d, weight=r)
     # TODO do the rest
-
-#prev is the number of previous phases to consider
-def produce_matrix(T,step, prev, step, src, dst, w, time):
-  avg_ratee_out,num_ratee_out,avg_rater_out,num_rater_out,avg_nbhd_out,num_nbhd_out,avg_global_out,num_global_out=increment(T, step, src, dst, w, time)
-  inputmatrix
-  # is this quotient evaluated as int??? I don't rmbr
-  for t in range (0, (T/step)*step):
-    # I want to concatenate but not sure if this is a valid method;;;also need to put entries as 0 if out_of_bound
-    # this constructs the input matrix (y,X) for regression/learning
-    inputmatrix[t] =w[t]+avg_ratee_out[T-prev:t]+num_ratee_out[T-prev:t]+avg_rater_out[T-prev:t]+num_rater_out[T-prev:t]+avg_nbhd_out[T-prev:t]+num_nbhd_out[T-prev:t]+num_global[t]+sum_global[t]
-    return inputmatrix
+    total_ratings += r
+    for n in range(0, max_node):
+      labels[n, p] = rte_sums[n]
+  return feats, labels
 
 def init_graph():
   G = nx.DiGraph()
@@ -106,6 +62,27 @@ def init_graph():
       G.add_edge(src, dst, weight=normalize(w), time=time)
       max_node = max(src, max(dst, max_node))
   return G, max_node
+
+def get_vectors():
+  with open("soc-sign-bitcoinotc.csv") as f:
+    reader = csv.reader(f)
+    srcs = []
+    dsts = []
+    ratings = []
+    max_node = 0
+    for src, dst, w, time in reader:
+      src = int(src)
+      dst = int(dst)
+      w = float(w)
+      srcs.append(src)
+      dsts.append(dst)
+      ratings.append(normalize(w))
+      max_node = max(src, max(dst, max_node))
+  return srcs, dsts, ratings, max_node
+
+srcs, dsts, ratings, max_node = get_vectors()
+
+feature_vectors(max_node, srcs, dsts, ratings)
 
 # returns a feature matrix for all nodes in the graph
 def rater_summaries(G):
@@ -121,8 +98,8 @@ def rater_summaries(G):
     ])
   return out
 
-G = init_graph()
-rater_summaries(G)
+#G = init_graph()
+#rater_summaries(G)
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
