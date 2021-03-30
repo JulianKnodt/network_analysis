@@ -60,6 +60,29 @@ def increment(step, src, dst, w):
       num_global_out[current]=num_global
   return avg_ratee_out,num_ratee_out,avg_rater_out,num_rater_out,avg_nbhd_out,num_nbhd_out,avg_global_out,num_global_out
 
+def feature_vectors(src: [int], dst: [int], ratings: [float], phase_len=30):
+  assert(len(src) == len(ratings))
+  assert(len(dst) == len(ratings))
+  G = nx.DiGraph()
+  T = len(ratings)
+  rater_sums = {}
+  n_raters = {}
+  ratee_sums = {}
+  n_ratees = {}
+
+  for phase in range(0, T/phase_len):
+    start = phase_len * phase
+    rtr_sums = [0] * T
+    rte_sums = [0] * T
+    n_rtr = [0] * T
+    n_rte = [0] * T
+    for t in range(start, start+phase_len):
+      rtr_sums[src[t]] += ratings[t]
+      n_rtr[src[t]] += 1
+      rte_sums[dst[t]] += ratings[t]
+      n_rtr[dst[t]] += 1
+    # TODO do the rest
+
 #prev is the number of previous phases to consider
 def produce_matrix(T,step, prev, step, src, dst, w, time):
   avg_ratee_out,num_ratee_out,avg_rater_out,num_rater_out,avg_nbhd_out,num_nbhd_out,avg_global_out,num_global_out=increment(T, step, src, dst, w, time)
@@ -73,6 +96,7 @@ def produce_matrix(T,step, prev, step, src, dst, w, time):
 
 def init_graph():
   G = nx.DiGraph()
+  max_node = 0
   with open("soc-sign-bitcoinotc.csv") as f:
     reader = csv.reader(f)
     for src, dst, w, time in reader:
@@ -80,7 +104,8 @@ def init_graph():
       G.add_node(dst)
 
       G.add_edge(src, dst, weight=normalize(w), time=time)
-  return G
+      max_node = max(src, max(dst, max_node))
+  return G, max_node
 
 # returns a feature matrix for all nodes in the graph
 def rater_summaries(G):
