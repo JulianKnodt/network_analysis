@@ -1,6 +1,8 @@
 import csv
 import networkx as nx
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -100,6 +102,23 @@ def rater_summaries(G):
 
 #G = init_graph()
 #rater_summaries(G)
+
+
+# A very basic predictor model with two linear layers.
+class Predictor(nn.Module):
+  def __init__(
+    self,
+    hidden_size=64,
+    features=5,
+    out = 1,
+  ):
+    super().__init__()
+    self.layer1 = nn.Linear(features, hidden_size)
+    self.layer2 = nn.Linear(hidden_size, out)
+  def forward(self, feat_vecs: ["BATCH", "FEATURES"]):
+    x = self.layer1(feat_vecs)
+    y = self.layer2(F.leaky_relu(feat_vecs))
+    return y
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
