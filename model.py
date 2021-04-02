@@ -49,7 +49,10 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
     # TODO do the rest
     total_ratings += r
     for n in range(0, max_node):
-      labels[n, p] = rte_sums[n]
+      feats[n, p, 0] = rtr_sums[n]/n_rtr[n]
+      feats[n, p, 1] = total_ratings
+      # current label is the average of its ratings
+      labels[n, p] = rte_sums[n]/n_rte[n]
   return feats, labels
 
 def init_graph():
