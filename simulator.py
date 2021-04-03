@@ -10,13 +10,16 @@ MALICIOUS="malicious"
 # Omniscient nodes know the real distribution of other nodes in the system
 OMNISCIENT="omniscient"
 
+# If there are not enough previous ratings, just give a random assessment
+UNKNOWN_THRESH=10
+
 # A simulator for the rating system
 class Simulator():
   def __init__(
     self,
     size = 1000,
     num_malicious = 50,
-    num_unbiased = 800,
+    num_unbiased = 500,
   ):
     self.G = nx.DiGraph()
     self.t = 0
@@ -36,7 +39,7 @@ class Simulator():
 
     node_kind = self.node_kind(src)
     if node_kind is UNBIASED:
-      self.G.add_edge(src, dst, weight=self.information_cascade(node_kind))
+      self.G.add_edge(src, dst, weight=self.information_cascade(dst))
     elif node_kind is MALICIOUS:
       # just add random noise into the graph
       # TODO maybe come up with something more complex here
@@ -53,14 +56,22 @@ class Simulator():
     else: return OMNISCIENT
   def information_cascade(self, dst):
     # looks at the ratings on dst and tries to predict another rating for it
-    in_edges = self.G.in_edges(dst)
-    if len(in_edges) < 10: return random.random()
+    in_edges = self.G.in_edges([dst])
+    if len(in_edges) < 1: return random.random()
     # just return average of all previous weights
-    return sum(v.weight for v in in_edges)/len(in_edges)
+    return sum(self.G.edges[u, dst]['weight'] for u,_ in in_edges)/len(in_edges)
+  def summary_stats(self):
+    out = [0.0] * self.size
+    for i in range(self.size):
+      in_edges = self.G.in_edges(i)
+      if len(in_edges) == 0: continue
+      out[i] = sum(self.G.edges[u, i]['weight'] for u,_ in in_edges)/len(in_edges)
+    return out
 
 def main():
   sim = Simulator()
-  for i in range(1000):
+  for i in range(10000):
     sim.step()
+  print(sim.summary_stats())
 
 if __name__ == "__main__": main()
