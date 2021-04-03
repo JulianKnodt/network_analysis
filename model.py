@@ -114,9 +114,10 @@ class Predictor(nn.Module):
     super().__init__()
     self.layer1 = nn.Linear(features, hidden_size)
     self.layer2 = nn.Linear(hidden_size, out)
+    self.act = nn.LeakyReLU()
   def forward(self, feat_vecs: ["BATCH", "FEATURES"]):
     x = self.layer1(feat_vecs)
-    y = self.layer2(F.leaky_relu(feat_vecs))
+    y = self.layer2(self.act(feat_vecs))
     return y
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
