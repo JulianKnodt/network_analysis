@@ -41,7 +41,7 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       rtr_sums[s] += r
       n_rtr[s] += 1
       rte_sums[d] += r
-      n_rtr[d] += 1
+      n_rte[d] += 1
       #for nbr in G.adj[s]
       #  nbhd_s[nbr][d] += w
       #  n_nbhd[nbr][d] += 1
@@ -49,10 +49,10 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
     # TODO do the rest
     total_ratings += r
     for n in range(0, max_node):
-      feats[n, p, 0] = rtr_sums[n]/n_rtr[n]
+      feats[n, p, 0] = rtr_sums[n]/n_rtr[n] if n_rtr[n] != 0 else 0
       feats[n, p, 1] = total_ratings
       # current label is the average of its ratings
-      labels[n, p] = rte_sums[n]/n_rte[n]
+      labels[n, p] = rte_sums[n]/n_rte[n] if n_rte[n] != 0 else 0
   return feats, labels
 
 def init_graph():
@@ -87,7 +87,7 @@ def get_vectors():
 
 srcs, dsts, ratings, max_node = get_vectors()
 
-feature_vectors(max_node, srcs, dsts, ratings)
+feats, labels = feature_vectors(max_node, srcs, dsts, ratings)
 
 # returns a feature matrix for all nodes in the graph
 def rater_summaries(G):
@@ -102,10 +102,6 @@ def rater_summaries(G):
       avg_rating,
     ])
   return out
-
-#G = init_graph()
-#rater_summaries(G)
-
 
 # A very basic predictor model with two linear layers.
 class Predictor(nn.Module):
