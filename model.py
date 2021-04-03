@@ -62,20 +62,6 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       rtr_sums[s] += r
       n_rtr[s] += 1
       rte_sums[d] += r
-<<<<<<< HEAD
-      n_rte[d] += 1
-      #for nbr in G.adj[s]
-      #  nbhd_s[nbr][d] += w
-      #  n_nbhd[nbr][d] += 1
-      #G.add_edge(s, d, weight=r)
-    # TODO do the rest
-    total_ratings += r
-    for n in range(0, max_node):
-      feats[n, p, 0] = rtr_sums[n]/n_rtr[n] if n_rtr[n] != 0 else 0
-      feats[n, p, 1] = total_ratings
-      # current label is the average of its ratings
-      labels[n, p] = rte_sums[n]/n_rte[n] if n_rte[n] != 0 else 0
-=======
       n_rtr[d] += 1
       for nbr in G.neighbors(n):
         update(w, nbhd_s, nbr, d)
@@ -95,7 +81,6 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       feats[t, 6] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
       feats[t, 7] = check_entry(n_nbhd,s,d)
       labels[t] = r
->>>>>>> added more featuer variables
   return feats, labels
 
 def init_graph():
