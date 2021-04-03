@@ -25,7 +25,7 @@ class Simulator():
     self.t = 0
 
     assert(size >= num_malicious + num_unbiased)
-    num_omniscient = size - num_malicious + num_unbiased
+    num_omniscient = size - num_malicious - num_unbiased
     self.size = size
     self.num_malicious = num_malicious
     self.num_unbiased = num_unbiased
@@ -67,11 +67,17 @@ class Simulator():
       if len(in_edges) == 0: continue
       out[i] = sum(self.G.edges[u, i]['weight'] for u,_ in in_edges)/len(in_edges)
     return out
+  def expected(self):
+    return [0.5] * self.num_unbiased + \
+      [0] * self.num_malicious + \
+      [1] * self.num_omni
 
 def main():
   sim = Simulator()
   for i in range(10000):
     sim.step()
-  print(sim.summary_stats())
+  got = torch.tensor(sim.summary_stats())
+  exp = torch.tensor(sim.expected())
+  print((got - exp).mean())
 
 if __name__ == "__main__": main()
