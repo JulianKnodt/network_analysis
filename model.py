@@ -10,6 +10,22 @@ if torch.cuda.is_available():
 
 def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
+def update(incre: int, dict, key1, key2):
+    if key1 in dict:
+        if key2 in dict[key1]:
+            dict[key1][key2]=dict[key1][key2]+incre
+        else:
+            dict[key1][key2]=incre
+    else: 
+        dict[key1][key2]=incre
+    return
+
+def check_entry(dict, key1, key2):
+    if key1 in dict:
+        if key2 in dict[key1]:
+            return dict[key1][key2]
+    return 0
+
 def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], phase_len=3000):
   assert(len(src) == len(ratings))
   assert(len(dst) == len(ratings))
@@ -21,15 +37,20 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
   ratee_sums = {}
   n_ratees = {}
   total_ratings = 0
+  n_total_ratings = 0
+  epsilon = 1.e-17
 
   phases = T//phase_len
   FEATURES = 5
 
+  G = nx.DiGraph()
+    
   # feature vectors for each phase for each node
   feats = torch.zeros(max_node, phases, FEATURES, device=device, dtype=torch.float)
   # How was this person rated on average before this phase?
   labels = torch.zeros(max_node, phases, device=device, dtype=torch.float)
-
+  nbhd_s = {}
+  n_nbhd = {}
   for p in range(0, phases):
     start = phase_len * p
     rtr_sums = [0] * max_node
@@ -41,6 +62,7 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       rtr_sums[s] += r
       n_rtr[s] += 1
       rte_sums[d] += r
+<<<<<<< HEAD
       n_rte[d] += 1
       #for nbr in G.adj[s]
       #  nbhd_s[nbr][d] += w
@@ -53,6 +75,27 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       feats[n, p, 1] = total_ratings
       # current label is the average of its ratings
       labels[n, p] = rte_sums[n]/n_rte[n] if n_rte[n] != 0 else 0
+=======
+      n_rtr[d] += 1
+      for nbr in G.neighbors(n):
+        update(w, nbhd_s, nbr, d)
+        update(1, n_nbhd, nbr, d)
+      G.add_node(s)
+      G.add_node(d)
+      G.add_edge(s, d)
+      #this should not create duplicates (see MultiDiGraph)
+      total_ratings += r
+      n_total_ratings += 1
+      feats[t, 0] = rtr_sums[s]/n_rtr[s]
+      feats[t, 1] = n_rtr[s]
+      feats[t, 2] = total_ratings/ n_total_ratings
+      feats[t, 3] = n_total_ratings
+      feats[t, 4] = rte_sums[d]/n_rte[d]
+      feats[t, 5] = n_rte[d]
+      feats[t, 6] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
+      feats[t, 7] = check_entry(n_nbhd,s,d)
+      labels[t] = r
+>>>>>>> added more featuer variables
   return feats, labels
 
 def init_graph():
@@ -63,7 +106,6 @@ def init_graph():
     for src, dst, w, time in reader:
       G.add_node(src)
       G.add_node(dst)
-
       G.add_edge(src, dst, weight=normalize(w), time=time)
       max_node = max(src, max(dst, max_node))
   return G, max_node
@@ -147,4 +189,3 @@ class Simulator():
   def step(self):
     # TODO add something here for adding a transaction after some random time
     ...
-
