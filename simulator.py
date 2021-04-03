@@ -17,9 +17,9 @@ UNKNOWN_THRESH=10
 class Simulator():
   def __init__(
     self,
-    size = 1000,
+    size = 500,
     num_malicious = 50,
-    num_unbiased = 500,
+    num_unbiased = 400,
   ):
     self.G = nx.DiGraph()
     self.t = 0
@@ -58,7 +58,8 @@ class Simulator():
     # looks at the ratings on dst and tries to predict another rating for it
     in_edges = self.G.in_edges([dst])
     if len(in_edges) < 1: return random.random()
-    # just return average of all previous weights
+    # just return average of all previous weights, maybe it'd be worth adding
+    # data from its own private transaction into it, which would be additional noise
     return sum(self.G.edges[u, dst]['weight'] for u,_ in in_edges)/len(in_edges)
   def summary_stats(self):
     out = [0.0] * self.size
@@ -74,7 +75,7 @@ class Simulator():
 
 def main():
   sim = Simulator()
-  for i in range(10000):
+  for i in range(30000):
     sim.step()
   got = torch.tensor(sim.summary_stats())
   exp = torch.tensor(sim.expected())
