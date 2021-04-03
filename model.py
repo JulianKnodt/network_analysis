@@ -156,21 +156,3 @@ def predict_trust(model, n, G):
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
 def predict_local_trust(model, n, G):
   ...
-
-class Simulator():
-  def __init__(
-    self,
-    size = 1000,
-    num_malicious = 50,
-    num_unbiased = 800,
-  ):
-    self.G = nx.DiGraph()
-    self.t = 0
-
-    assert(size >= num_malicious + num_unbiased)
-    num_omniscient = size - num_malicious + num_unbiased
-
-    self.update_fn = None
-  def step(self):
-    # TODO add something here for adding a transaction after some random time
-    ...
