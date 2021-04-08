@@ -6,7 +6,7 @@ import torch.nn as nn
 import random as rand
 import torch.nn.functional as F
 
-#total transactions =35592
+#total # of transactions =35592
 device = torch.device("cpu")
 if torch.cuda.is_available():
   device = torch.device("cuda:0")
@@ -15,7 +15,8 @@ FEATURES = 8
 batch_size=512
 def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
-# add incre to the [key1][key2] entry of "dict"
+# helper function
+#add the integer incre to the [key1][key2]-entry of "dict"
 def update(incre: int, dict, key1, key2):
     if key1 in dict:
         if key2 in dict[key1]:
@@ -23,26 +24,37 @@ def update(incre: int, dict, key1, key2):
         else:
             dict[key1][key2]=incre
     else: 
+        dict[key1]={}
         dict[key1][key2]=incre
     return
 
-# return [key1][key2] entry of "dict" if the entry is nonempty
+#helper function
+# return [key1][key2]-entry of "dict" if the entry is nonempty
 def check_entry(dict, key1, key2):
     if key1 in dict:
         if key2 in dict[key1]:
             return dict[key1][key2]
     return 0
+
 #splits data into batches
-def split_data(featMat, labelVec):
+def split_data(featMat, labelVec): 
+    #in general we use X for feature matrix, Y for target label vector
     num_batch = len(featMat)//batch_size
-    num_test=num_batch/4
+    num_test=num_batch//4
     num_train=num_batch-num_test
-    split_indicator=np.append(np.zeros(num_test),np.ones(num_train))
-    split_indicator=rand.shffle(split_indicator)
-    train_X = {}
-    train_Y = {}
-    test_X = {}
-    test_Y = {}
+    
+    split_indicator=np.append(np.zeros(num_test, dtype=int),np.ones(num_train, dtype=int))
+    # if this is 0, assign the row to test data batch
+    # if this is 1, assign the row to training data batch
+    
+    rand.shuffle(split_indicator)
+    # we want to randomly assign rows to test/training data, so we do this by randomizing the indices
+    train_X = []
+    train_Y = []
+    test_X = []
+    test_Y = []
+    # this code should work, but this must be translated to the operations of tensors instead of lists
+    # here, we actually assign data to batches
     for index in range(num_batch):
         if split_indicator[index] == 0:
             test_X.append(featMat[index*batch_size+1:(index+1)*batch_size,])
@@ -89,11 +101,7 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       rtr_sums[s] += r
       n_rtr[s] += 1
       rte_sums[d] += r
-      #n_rtr[d] += 1
-      #for nbr in G.neighbors(n):
-       # update(w, nbhd_s, nbr, d)
-       # update(1, n_nbhd, nbr, d)
-      n_rtr[d] += 1
+      n_rte[d] += 1
       G.add_node(s)
       G.add_node(d)
       for nbr in G.neighbors(s):
@@ -178,6 +186,7 @@ class Predictor(nn.Module):
     y = self.layer2(self.act(feat_vecs))
     return y
 
+#this trains the model using the data from the csv file
 class Trainer():
     def __init__(self,net=None,optim=None,loss_function=None, train_loader=None):
         self.net = net
@@ -204,9 +213,12 @@ class Trainer():
             print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
         return losses
 
-num_train, num_test, train_X, train_Y, test_X, test_Y= split_data(feats, labels)
-train_loader = np.concatenate((train_Y,train_X), axis=1)
-test_loader = np.concatenate((test_Y,test_X), axis=1)
+num_train, num_test, train_X, train_Y, test_X, test_Y = split_data(feats, labels)
+
+#print(num_train,num_test,np.array(train_X).shape)#train_Y.shape,test_X.shape,test_Y.shape)
+
+train_loader = torch.cat((train_Y,train_X), 1)
+test_loader = torch.cat((test_Y,test_X),1)
 net = ConvNet()
 net = net.to(device) 
 #opt = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
@@ -228,3 +240,5 @@ def predict_trust(model, n, G):
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
 def predict_local_trust(model, n, G):
   ...
+
+
