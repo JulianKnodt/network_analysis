@@ -22,7 +22,7 @@ def update(incre: int, dict, key1, key2):
             dict[key1][key2]=dict[key1][key2]+incre
         else:
             dict[key1][key2]=incre
-    else: 
+    else:
         dict[key1][key2]=incre
     return
 
@@ -67,15 +67,17 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
   n_ratees = {}
   total_ratings = 0
   n_total_ratings = 0
-  epsilon = 1.e-17
+  epsilon = 1e-10
 
   phases = T//phase_len
   G = nx.DiGraph()
-    
+
   # feature vectors for each phase for each node
-  feats = torch.zeros(phase_len * phases, FEATURES, device=device, dtype=torch.float)
+  feats = torch.zeros(T, FEATURES, device=device, dtype=torch.float)
+
   # How was this person rated on average before this phase?
-  labels = torch.zeros(phase_len * phases, device=device, dtype=torch.float)
+  labels = torch.zeros(T, device=device, dtype=torch.float)
+
   nbhd_s = {}
   n_nbhd = {}
   for p in range(0, phases):
@@ -100,7 +102,6 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
             update(r, nbhd_s, nbr, d)
             update(1, n_nbhd, nbr, d)
       G.add_edge(s, d)
-      #this should not create duplicates (see MultiDiGraph)
       total_ratings += r
       n_total_ratings += 1
       feats[t, 0] = rtr_sums[s]/n_rtr[s]
