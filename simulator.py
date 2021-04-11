@@ -16,7 +16,8 @@ MALICIOUS="malicious"
 OMNISCIENT="omniscient"
 
 # If there are not enough previous ratings, just give a random assessment
-UNKNOWN_THRESH=10
+UNKNOWN_THRESH=2
+
 
 # A simulator for the rating system
 class Simulator():
@@ -79,7 +80,7 @@ class Simulator():
   def information_cascade(self, dst, tx):
     # looks at the ratings on dst and tries to predict another rating for it
     in_edges = self.G.in_edges([dst])
-    if len(in_edges) < 2: return tx
+    if len(in_edges) < UNKNOWN_THRESH: return tx
     # just return average of all previous weights, maybe it'd be worth adding
     # data from its own private transaction into it, which would be additional noise
     return sum(self.G.edges[u, dst]['weight'] for u,_ in in_edges)/len(in_edges)
