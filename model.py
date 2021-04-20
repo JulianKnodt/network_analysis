@@ -54,6 +54,11 @@ def split_data(featMat, labelVec):
     train_Y = []
     test_X = []
     test_Y = []
+    
+    
+    #print("lanbel",labelVec)
+    #print("lanbel   end")
+    
     # this code should work, but this must be translated to the operations of tensors instead of lists
     # here, we actually assign data to batches
     for index in range(num_batch):
@@ -189,60 +194,63 @@ class Predictor(nn.Module):
 
 #this trains the model using the data from the csv file
 class Trainer():
-    def __init__(self,net=None,optim=None,loss_function=None, train_loader=None):
+    def __init__(self,net=None,optim=None,loss_function=None, train_loader_X=None, train_loader_Y=None):
         self.net = net
         self.optim = optim
         self.loss_function = loss_function
-        self.train_loader = train_loader
+        self.train_loader_X = train_loader_X
+        self.train_loader_Y = train_loader_Y
 
     def train(self,epochs): 
         losses = []
         for epoch in range(epochs):
             epoch_loss = 0.0
             epoch_steps = 0
-            for data in self.train_loader:              
-                X = data[..., :-1].to(device)
-                y = data[...,  -1].to(device) 
+            for data in range(len(self.train_loader_X)):              
+                X = self.train_loader_X[data].to(device)
+                y = self.train_loader_Y[data].to(device)
                 prediction = self.net(X)               
-                loss = self.loss_function(prediction, y).mean()
+                loss = self.loss_function(prediction.squeeze(-1), y.squeeze(-1)).mean()
                 self.optim.zero_grad() 
                 loss.backward()
                 self.optim.step()
                 epoch_loss += loss.item()
-                epoch_steps += 1
+                epoch_steps += 1            
             losses.append(epoch_loss / epoch_steps)
             #losses=(epoch_loss / epoch_steps)
             print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
         return losses
 
-num_train, num_test, train_X, train_Y, test_X, test_Y = split_data(feats, labels)
+num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data(feats, labels)
 
 #print(num_train,num_test,np.array(train_X).shape)#train_Y.shape,test_X.shape,test_Y.shape)
 
 # B, Time, Features/Label
-print(test_Y.unsqueeze(-1).shape, test_X.shape)
-print(train_Y.unsqueeze(-1).shape, train_X.shape)
-train_loader = torch.cat((train_Y.unsqueeze(-1),train_X), dim=2)
-test_loader = torch.cat((test_Y.unsqueeze(-1), test_X), dim=2)
+#print(test_Y.unsqueeze(-1).shape, test_X.shape)
+#print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
 opt = optim.RMSprop(net.parameters(), lr=0.007)
-loss_function = nn.PairwiseDistance()
+loss_function = nn.BCEWithLogitsLoss()
 
-trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader=train_loader)
+trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
 
 losses = trainer.train(NUM_EPOCH)
 
 #assert(losses[-1] < 0.03)
 #assert(len(losses)==num_epochs)
 
-for data in test_loader:
-    X = data[..., :-1].to(device)
-    y = data[..., -1].to(device)
+for data in range(len(test_loader)):
+    X = test_X[data].to(device)
+    y = test_Y[data].to(device)
     output = net(X)
-    #print(output, y)
+    print("output")
+    #print(output)
+    print("y")
+    #print(y)
+    
     #print(output-y)
-    print(F.pairwise_distance(output, y).mean().item())
+    print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
         
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
@@ -253,6 +261,8 @@ def predict_trust(model, n, G):
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
 def predict_local_trust(model, n, G):
   ...
+
+
 
 
 
