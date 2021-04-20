@@ -62,12 +62,11 @@ class Simulator():
   # makes a private transaction of some good from dst to src (inverse of rating)
   def mk_tx(self, dst):
     node_kind = self.node_kind(dst)
-    # unbiased nodes are fully random txs
-    if node_kind is UNBIASED: val = random.random()
     # malicious nodes will tend to have bad txs
-    elif node_kind is MALICIOUS: val = np.random.binomial(100, 0.1)/100
-    # expert nodes will tend to have good txs
-    elif node_kind is OMNISCIENT: val = np.random.binomial(100, 0.9)/100
+    if node_kind is MALICIOUS: val = np.random.binomial(100, 0.1)/100
+    # expert nodes and unbiased nodes will tend to have good txs
+    elif node_kind is UNBIASED or node_kind is OMNISCIENT:
+      val = np.random.binomial(100, 0.9)/100
     self.txs.setdefault(dst, []).append(val)
     return val
   def node_kind(self, v):

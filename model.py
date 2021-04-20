@@ -209,7 +209,7 @@ class Trainer():
                 loss.backward()
                 self.optim.step()
                 epoch_loss += loss.item()
-                epoch_steps += 1            
+                epoch_steps += 1
             losses.append(epoch_loss / epoch_steps)
             #losses=(epoch_loss / epoch_steps)
             print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
