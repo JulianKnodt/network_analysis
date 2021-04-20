@@ -49,6 +49,8 @@ def split_data(featMat, labelVec):
     # if this is 1, assign the row to training data batch
     
     rand.shuffle(split_indicator)
+    
+    print("random",split_indicator)
     # we want to randomly assign rows to test/training data, so we do this by randomizing the indices
     train_X = []
     train_Y = []
@@ -68,8 +70,16 @@ def split_data(featMat, labelVec):
         else:
             train_X.append(featMat[index*batch_size:(index+1)*batch_size,])
             train_Y.append(labelVec[index*batch_size:(index+1)*batch_size])
-    return num_train, num_test, torch.stack(train_X, dim=0), torch.stack(train_Y, dim=0), torch.stack(test_X, dim=0), torch.stack(test_Y, dim=0)
-                
+    tr_X = torch.stack(train_X, dim=0)
+    tr_Y = torch.stack(train_Y, dim=0)
+    ts_X = torch.stack(test_X, dim=0)
+    ts_Y = torch.stack(test_Y, dim=0)
+    tr_X = tr_X[torch.randperm(tr_X.size()[0])]
+    tr_Y = tr_Y[torch.randperm(tr_Y.size()[0])]
+    ts_X = ts_X[torch.randperm(ts_X.size()[0])]
+    ts_Y = ts_Y[torch.randperm(ts_Y.size()[0])]
+    return num_train, num_test,tr_X, tr_Y, ts_X , ts_Y
+    #this uses the trick from https://stackoverflow.com/questions/46826218/pytorch-how-to-get-the-shape-of-a-tensor-as-a-list-of-int
         
         
     
@@ -117,10 +127,10 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       #this should not create duplicates (see MultiDiGraph)
       total_ratings += r
       n_total_ratings += 1
-      feats[t, 0] = rtr_sums[s]/n_rtr[s]
+      feats[t, 0] = n_total_ratings 
       feats[t, 1] = n_rtr[s]
       feats[t, 2] = total_ratings/ n_total_ratings
-      feats[t, 3] = n_total_ratings
+      feats[t, 3] = rtr_sums[s]/n_rtr[s]
       feats[t, 4] = rte_sums[d]/n_rte[d]
       feats[t, 5] = n_rte[d]
       feats[t, 6] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
@@ -230,7 +240,7 @@ num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data
 #print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
-opt = optim.RMSprop(net.parameters(), lr=0.007)
+opt = optim.RMSprop(net.parameters(), lr=0.0035)
 loss_function = nn.BCEWithLogitsLoss()
 
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
@@ -240,14 +250,18 @@ losses = trainer.train(NUM_EPOCH)
 #assert(losses[-1] < 0.03)
 #assert(len(losses)==num_epochs)
 
-for data in range(len(test_loader)):
-    X = test_X[data].to(device)
-    y = test_Y[data].to(device)
+for data in range(len(test_X)):
+    #print(test_X.size())
+    #print(test_X[data].size())
+    #print(test_X[data,].size())
+    X = test_X[data,].to(device)
+    y = test_Y[data,].to(device)
     output = net(X)
     print("output")
-    #print(output)
+    print(output)
     print("y")
-    #print(y)
+    print(y)
+    #print("test_X",X)
     
     #print(output-y)
     print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
@@ -261,6 +275,8 @@ def predict_trust(model, n, G):
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
 def predict_local_trust(model, n, G):
   ...
+
+
 
 
 
