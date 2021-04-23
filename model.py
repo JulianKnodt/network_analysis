@@ -11,9 +11,10 @@ import torch.nn.functional as F
 device = torch.device("cpu")
 if torch.cuda.is_available():
   device = torch.device("cuda:0")
-NUM_EPOCH=90
 FEATURES = 8
 batch_size=256
+num_of_copy=2
+NUM_EPOCH=90*num_of_copy
 def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
 # helper function
@@ -48,9 +49,9 @@ def split_data(featMat, labelVec):
     # if this is 0, assign the row to test data batch
     # if this is 1, assign the row to training data batch
     
-    rand.shuffle(split_indicator)
+    #rand.shuffle(split_indicator)
     
-    print("random",split_indicator)
+    #print("random",split_indicator)
     # we want to randomly assign rows to test/training data, so we do this by randomizing the indices
     train_X = []
     train_Y = []
@@ -63,13 +64,15 @@ def split_data(featMat, labelVec):
     
     # this code should work, but this must be translated to the operations of tensors instead of lists
     # here, we actually assign data to batches
-    for index in range(num_batch):
-        if split_indicator[index] == 0:
-            test_X.append(featMat[index*batch_size:(index+1)*batch_size,])
-            test_Y.append(labelVec[index*batch_size:(index+1)*batch_size])
-        else:
-            train_X.append(featMat[index*batch_size:(index+1)*batch_size,])
-            train_Y.append(labelVec[index*batch_size:(index+1)*batch_size])
+    for copy in range(num_of_copy):
+        rand.shuffle(split_indicator)
+        for index in range(num_batch):
+            if split_indicator[index] == 0:
+                test_X.append(featMat[index*batch_size:(index+1)*batch_size,])
+                test_Y.append(labelVec[index*batch_size:(index+1)*batch_size])
+            else:
+                train_X.append(featMat[index*batch_size:(index+1)*batch_size,])
+                train_Y.append(labelVec[index*batch_size:(index+1)*batch_size])
     tr_X = torch.stack(train_X, dim=0)
     tr_Y = torch.stack(train_Y, dim=0)
     ts_X = torch.stack(test_X, dim=0)
@@ -127,9 +130,9 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       #this should not create duplicates (see MultiDiGraph)
       total_ratings += r
       n_total_ratings += 1
-      feats[t, 0] = n_total_ratings 
+      feats[t, 0] = 0#n_total_ratings 
       feats[t, 1] = n_rtr[s]
-      feats[t, 2] = total_ratings/ n_total_ratings
+      feats[t, 2] = 0#total_ratings/ n_total_ratings
       feats[t, 3] = rtr_sums[s]/n_rtr[s]
       feats[t, 4] = rte_sums[d]/n_rte[d]
       feats[t, 5] = n_rte[d]
@@ -240,9 +243,9 @@ num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data
 #print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
-opt = optim.RMSprop(net.parameters(), lr=0.0035)
-loss_function = nn.BCEWithLogitsLoss()
-
+opt = optim.RMSprop(net.parameters(), lr=0.02)
+#loss_function = nn.BCEWithLogitsLoss()
+loss_function = nn.MSELoss()
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
 
 losses = trainer.train(NUM_EPOCH)
