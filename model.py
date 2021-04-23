@@ -11,9 +11,9 @@ import torch.nn.functional as F
 device = torch.device("cpu")
 if torch.cuda.is_available():
   device = torch.device("cuda:0")
-FEATURES = 8
+FEATURES = 18
 batch_size=256
-num_of_copy=2
+num_of_copy=1
 NUM_EPOCH=90*num_of_copy
 def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
@@ -109,36 +109,69 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
   labels = torch.zeros(phase_len * phases, device=device, dtype=torch.float)
   nbhd_s = {}
   n_nbhd = {}
+  hist_nbhd_s = {}
+  hist_n_nbhd = {}
+  #prev_nbhd_s = {}
+  #prev_n_nbhd = {}
   for p in range(0, phases):
     start = phase_len * p
     rtr_sums = [0] * max_node
     rte_sums = [0] * max_node
     n_rtr = [0] * max_node
     n_rte = [0] * max_node
+    hist_n_rtr = [0] * max_node
+    hist_n_rte = [0] * max_node
+    hist_rtr_sums = [0] * max_node
+    hist_rte_sums = [0] * max_node
+    prev_n_rtr = [0] * max_node
+    prev_n_rte = [0] * max_node
+    prev_rtr_sums = [0] * max_node
+    prev_rte_sums = [0] * max_node
     for t in range(start, start+phase_len):
       s,d,r = src[t], dst[t], ratings[t]
       rtr_sums[s] += r
       n_rtr[s] += 1
       rte_sums[d] += r
       n_rte[d] += 1
+      hist_rtr_sums[s] += r
+      hist_n_rtr[s] += 1
+      hist_rte_sums[d] += r
+      hist_n_rte[d] += 1
       G.add_node(s)
       G.add_node(d)
       for nbr in G.neighbors(s):
             update(r, nbhd_s, nbr, d)
             update(1, n_nbhd, nbr, d)
+            update(r, hist_nbhd_s, nbr, d)
+            update(1, hist_n_nbhd, nbr, d)
       G.add_edge(s, d)
       #this should not create duplicates (see MultiDiGraph)
       total_ratings += r
       n_total_ratings += 1
       feats[t, 0] = 0#n_total_ratings 
       feats[t, 1] = n_rtr[s]
-      feats[t, 2] = 0#total_ratings/ n_total_ratings
+      feats[t, 2] = total_ratings/ n_total_ratings
       feats[t, 3] = rtr_sums[s]/n_rtr[s]
       feats[t, 4] = rte_sums[d]/n_rte[d]
       feats[t, 5] = n_rte[d]
       feats[t, 6] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
       feats[t, 7] = check_entry(n_nbhd,s,d)
+      feats[t, 8] = hist_n_rtr[s]
+      feats[t, 9] = hist_rtr_sums[s]/hist_n_rtr[s]
+      feats[t, 10] = hist_rte_sums[d]/hist_n_rte[d]
+      feats[t, 11] = hist_n_rte[d]
+      feats[t, 12] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
+      feats[t, 13] = check_entry(hist_n_nbhd,s,d)
+      feats[t, 14] = prev_n_rtr[s]
+      feats[t, 15] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
+      feats[t, 16] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
+      feats[t, 17] = prev_n_rte[d]
       labels[t] = r
+    for person in range(max_node):
+      prev_rtr_sums[person] =rtr_sums[person]
+      prev_rte_sums[person] =rte_sums[person]
+      prev_n_rte[person] =n_rte[person]
+      prev_n_rtr[person] =n_rtr[person]
   return feats, labels
 
 def init_graph():
@@ -193,17 +226,19 @@ class Predictor(nn.Module):
   def __init__(
     self,
     hidden_size=32,
-    features=8,
+    features=FEATURES,
     out = 1,
   ):
     super().__init__()
     self.layer1 = nn.Linear(features, hidden_size)
-    self.layer2 = nn.Linear(hidden_size, out)
+    self.layer2 = nn.Linear(hidden_size, hidden_size)
+    self.layer3 = nn.Linear(hidden_size, out)
     self.act = nn.LeakyReLU()
   def forward(self, feat_vecs: ["BATCH", "FEATURES"]):
-    x = self.layer1(feat_vecs)
+    x = self.layer1(self.act(feat_vecs))
     y = self.layer2(self.act(x))
-    return y
+    z = self.layer3(self.act(y))
+    return z
 
 #this trains the model using the data from the csv file
 class Trainer():
@@ -243,7 +278,7 @@ num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data
 #print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
-opt = optim.RMSprop(net.parameters(), lr=0.02)
+opt = optim.RMSprop(net.parameters(), lr=0.025)
 #loss_function = nn.BCEWithLogitsLoss()
 loss_function = nn.MSELoss()
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
@@ -278,6 +313,8 @@ def predict_trust(model, n, G):
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
 def predict_local_trust(model, n, G):
   ...
+
+
 
 
 
