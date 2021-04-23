@@ -278,7 +278,7 @@ num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data
 #print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
-opt = optim.RMSprop(net.parameters(), lr=0.025)
+opt = optim.Adam(net.parameters(), lr=0.02)
 #loss_function = nn.BCEWithLogitsLoss()
 loss_function = nn.MSELoss()
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
@@ -296,9 +296,9 @@ for data in range(len(test_X)):
     y = test_Y[data,].to(device)
     output = net(X)
     print("output")
-    print(output)
+    print(output[:10])
     print("y")
-    print(y)
+    print(y[:10])
     #print("test_X",X)
     
     #print(output-y)
@@ -307,7 +307,7 @@ for data in range(len(test_X)):
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
 def predict_trust(model, n, G):
-  ...
+    ...
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
