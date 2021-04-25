@@ -11,7 +11,7 @@ import torch.nn.functional as F
 device = torch.device("cpu")
 if torch.cuda.is_available():
   device = torch.device("cuda:0")
-FEATURES = 18
+FEATURES = 9
 batch_size=256
 num_of_copy=1
 NUM_EPOCH=90*num_of_copy
@@ -48,22 +48,11 @@ def split_data(featMat, labelVec):
     split_indicator=np.append(np.zeros(num_test, dtype=int),np.ones(num_train, dtype=int))
     # if this is 0, assign the row to test data batch
     # if this is 1, assign the row to training data batch
-    
-    #rand.shuffle(split_indicator)
-    
-    #print("random",split_indicator)
     # we want to randomly assign rows to test/training data, so we do this by randomizing the indices
     train_X = []
     train_Y = []
     test_X = []
     test_Y = []
-    
-    
-    #print("lanbel",labelVec)
-    #print("lanbel   end")
-    
-    # this code should work, but this must be translated to the operations of tensors instead of lists
-    # here, we actually assign data to batches
     for copy in range(num_of_copy):
         rand.shuffle(split_indicator)
         for index in range(num_batch):
@@ -107,22 +96,31 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
   feats = torch.zeros(phase_len * phases, FEATURES, device=device, dtype=torch.float)
   # How was this person rated on average before this phase?
   labels = torch.zeros(phase_len * phases, device=device, dtype=torch.float)
+  #total past ratings by the neighbors in this phase
   nbhd_s = {}
+  #number of past ratings by the neighbors in this phase
   n_nbhd = {}
+  #total past ratings by the neighbors in the whole history
   hist_nbhd_s = {}
+  #number of past ratings by the neighbors in the whole history
   hist_n_nbhd = {}
-  #prev_nbhd_s = {}
-  #prev_n_nbhd = {}
+
   for p in range(0, phases):
     start = phase_len * p
+    #rater's total ratings in this phase
     rtr_sums = [0] * max_node
+    #ratee's total ratings in this phase
     rte_sums = [0] * max_node
+    #rater's number of ratings in this phase
     n_rtr = [0] * max_node
+    #ratee's number of ratings in this phase
     n_rte = [0] * max_node
+    # same as above, but in the whole history
     hist_n_rtr = [0] * max_node
     hist_n_rte = [0] * max_node
     hist_rtr_sums = [0] * max_node
     hist_rte_sums = [0] * max_node
+    # same as above, but in the previous phase
     prev_n_rtr = [0] * max_node
     prev_n_rte = [0] * max_node
     prev_rtr_sums = [0] * max_node
@@ -148,24 +146,15 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       #this should not create duplicates (see MultiDiGraph)
       total_ratings += r
       n_total_ratings += 1
-      feats[t, 0] = 0#n_total_ratings 
-      feats[t, 1] = n_rtr[s]
-      feats[t, 2] = total_ratings/ n_total_ratings
-      feats[t, 3] = rtr_sums[s]/n_rtr[s]
-      feats[t, 4] = rte_sums[d]/n_rte[d]
-      feats[t, 5] = n_rte[d]
-      feats[t, 6] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
-      feats[t, 7] = check_entry(n_nbhd,s,d)
-      feats[t, 8] = hist_n_rtr[s]
-      feats[t, 9] = hist_rtr_sums[s]/hist_n_rtr[s]
-      feats[t, 10] = hist_rte_sums[d]/hist_n_rte[d]
-      feats[t, 11] = hist_n_rte[d]
-      feats[t, 12] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
-      feats[t, 13] = check_entry(hist_n_nbhd,s,d)
-      feats[t, 14] = prev_n_rtr[s]
-      feats[t, 15] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
-      feats[t, 16] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
-      feats[t, 17] = prev_n_rte[d]
+      feats[t, 0] = total_ratings/ n_total_ratings
+      feats[t, 1] = rtr_sums[s]/n_rtr[s]
+      feats[t, 2] = rte_sums[d]/n_rte[d]
+      feats[t, 3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
+      feats[t, 4] = hist_rtr_sums[s]/hist_n_rtr[s]
+      feats[t, 5] = hist_rte_sums[d]/hist_n_rte[d]
+      feats[t, 6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
+      feats[t, 7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
+      feats[t, 8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
       labels[t] = r
     for person in range(max_node):
       prev_rtr_sums[person] =rtr_sums[person]
@@ -278,15 +267,13 @@ num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data
 #print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
 net = net.to(device) 
-opt = optim.Adam(net.parameters(), lr=0.02)
+opt = optim.RMSprop(net.parameters(), lr=0.03)
 #loss_function = nn.BCEWithLogitsLoss()
 loss_function = nn.MSELoss()
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
 
 losses = trainer.train(NUM_EPOCH)
 
-#assert(losses[-1] < 0.03)
-#assert(len(losses)==num_epochs)
 
 for data in range(len(test_X)):
     #print(test_X.size())
@@ -299,26 +286,20 @@ for data in range(len(test_X)):
     print(output[:10])
     print("y")
     print(y[:10])
-    #print("test_X",X)
-    
-    #print(output-y)
     print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
         
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
-def predict_trust(model, n, G):
-    ...
-
-# Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
-# and outputs a predicted "local trust" based on its neighbors ratings in [0,1].
-def predict_local_trust(model, n, G):
-  ...
-
-
-
-
-
-
-
-
-
+def predict_trust(model, n, total_ratings, n_total_ratings, rtr_sums, rte_sums, nbhd_s,n_nbhd, hist_rtr_sums, hist_n_rtr, hist_rte_sums, \
+                  hist_n_rte, hist_nbhd_s,hist_n_nbhd, prev_rte_sums,prev_n_rte,prev_rtr_sums,prev_n_rtr):
+    feats = [0]*FEATURES
+    feats[ 0] = total_ratings/ n_total_ratings
+    feats[ 1] = rtr_sums[s]/n_rtr[s]
+    feats[ 2] = rte_sums[d]/n_rte[d]
+    feats[ 3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
+    feats[ 4] = hist_rtr_sums[s]/hist_n_rtr[s]
+    feats[ 5] = hist_rte_sums[d]/hist_n_rte[d]
+    feats[ 6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
+    feats[ 7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
+    feats[ 8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
+    return   model.net(feats)
