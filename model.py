@@ -25,7 +25,7 @@ def update(incre: int, dict, key1, key2):
             dict[key1][key2]=dict[key1][key2]+incre
         else:
             dict[key1][key2]=incre
-    else: 
+    else:
         dict[key1]={}
         dict[key1][key2]=incre
     return
@@ -39,12 +39,12 @@ def check_entry(dict, key1, key2):
     return 0
 
 #splits data into batches
-def split_data(featMat, labelVec): 
+def split_data(featMat, labelVec):
     #in general we use X for feature matrix, Y for target label vector
     num_batch = len(featMat)//batch_size
     num_test=num_batch//4
     num_train=num_batch-num_test
-    
+
     split_indicator=np.append(np.zeros(num_test, dtype=int),np.ones(num_train, dtype=int))
     # if this is 0, assign the row to test data batch
     # if this is 1, assign the row to training data batch
@@ -72,13 +72,10 @@ def split_data(featMat, labelVec):
     ts_Y = ts_Y[torch.randperm(ts_Y.size()[0])]
     return num_train, num_test,tr_X, tr_Y, ts_X , ts_Y
     #this uses the trick from https://stackoverflow.com/questions/46826218/pytorch-how-to-get-the-shape-of-a-tensor-as-a-list-of-int
-        
-        
-    
+
 def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], phase_len=3000):
   assert(len(src) == len(ratings))
   assert(len(dst) == len(ratings))
-  print(len(src))
   G = nx.DiGraph()
   T = len(ratings)
   rater_sums = {}
@@ -91,7 +88,7 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
 
   phases = T//phase_len
   G = nx.DiGraph()
-    
+
   # feature vectors for each phase for each node
   feats = torch.zeros(phase_len * phases, FEATURES, device=device, dtype=torch.float)
   # How was this person rated on average before this phase?
@@ -163,18 +160,6 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       prev_n_rtr[person] =n_rtr[person]
   return feats, labels
 
-def init_graph():
-  G = nx.DiGraph()
-  max_node = 0
-  with open("soc-sign-bitcoinotc.csv") as f:
-    reader = csv.reader(f)
-    for src, dst, w, time in reader:
-      G.add_node(src)
-      G.add_node(dst)
-      G.add_edge(src, dst, weight=normalize(w), time=time)
-      max_node = max(src, max(dst, max_node))
-  return G, max_node
-
 def get_vectors():
   with open("soc-sign-bitcoinotc.csv") as f:
     reader = csv.reader(f)
@@ -238,21 +223,21 @@ class Trainer():
         self.train_loader_X = train_loader_X
         self.train_loader_Y = train_loader_Y
 
-    def train(self,epochs): 
+    def train(self,epochs):
         losses = []
         for epoch in range(epochs):
             epoch_loss = 0.0
             epoch_steps = 0
-            for data in range(len(self.train_loader_X)):              
+            for data in range(len(self.train_loader_X)):
                 X = self.train_loader_X[data].to(device)
                 y = self.train_loader_Y[data].to(device)
-                prediction = self.net(X)               
+                prediction = self.net(X)
                 loss = self.loss_function(prediction.squeeze(-1), y.squeeze(-1)).mean()
-                self.optim.zero_grad() 
+                self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
                 epoch_loss += loss.item()
-                epoch_steps += 1            
+                epoch_steps += 1
             losses.append(epoch_loss / epoch_steps)
             #losses=(epoch_loss / epoch_steps)
             print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
@@ -260,14 +245,11 @@ class Trainer():
 
 num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data(feats, labels)
 
-#print(num_train,num_test,np.array(train_X).shape)#train_Y.shape,test_X.shape,test_Y.shape)
-
 # B, Time, Features/Label
-#print(test_Y.unsqueeze(-1).shape, test_X.shape)
-#print(train_Y.unsqueeze(-1).shape, train_X.shape)
 net = Predictor()
-net = net.to(device) 
+net = net.to(device)
 opt = optim.RMSprop(net.parameters(), lr=0.03)
+
 #loss_function = nn.BCEWithLogitsLoss()
 loss_function = nn.MSELoss()
 trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
@@ -285,21 +267,29 @@ for data in range(len(test_X)):
     print("output")
     print(output[:10])
     print("y")
-    print(y[:10])
     print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
-        
+
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
-def predict_trust(model, n, total_ratings, n_total_ratings, rtr_sums, rte_sums, nbhd_s,n_nbhd, hist_rtr_sums, hist_n_rtr, hist_rte_sums, \
-                  hist_n_rte, hist_nbhd_s,hist_n_nbhd, prev_rte_sums,prev_n_rte,prev_rtr_sums,prev_n_rtr):
+def predict_trust(model,
+  total_ratings, n_total_ratings,
+
+  rtr_sums, n_rtr, rte_sums, n_rte,
+
+  nbhd_s,n_nbhd,
+
+  hist_rtr_sums, hist_n_rtr, hist_rte_sums, hist_n_rte, hist_nbhd_s,hist_n_nbhd,
+
+  prev_rte_sums, prev_n_rte, prev_rtr_sums, prev_n_rtr
+):
     feats = [0]*FEATURES
-    feats[ 0] = total_ratings/ n_total_ratings
-    feats[ 1] = rtr_sums[s]/n_rtr[s]
-    feats[ 2] = rte_sums[d]/n_rte[d]
-    feats[ 3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
-    feats[ 4] = hist_rtr_sums[s]/hist_n_rtr[s]
-    feats[ 5] = hist_rte_sums[d]/hist_n_rte[d]
-    feats[ 6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
-    feats[ 7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
-    feats[ 8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
+    feats[0] = total_ratings/ n_total_ratings
+    feats[1] = rtr_sums[s]/n_rtr[s]
+    feats[2] = rte_sums[d]/n_rte[d]
+    feats[3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
+    feats[4] = hist_rtr_sums[s]/hist_n_rtr[s]
+    feats[5] = hist_rte_sums[d]/hist_n_rte[d]
+    feats[6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
+    feats[7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
+    feats[8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
     return   model.net(feats)
