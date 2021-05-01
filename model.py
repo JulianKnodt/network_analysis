@@ -243,35 +243,39 @@ class Trainer():
             print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
         return losses
 
-num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data(feats, labels)
 
-# B, Time, Features/Label
-net = Predictor()
-net = net.to(device)
-opt = optim.RMSprop(net.parameters(), lr=0.03)
+def train_model(show_test_loss=False):
+  num_train, num_test, train_loader_X, train_loader_Y, test_X, test_Y = split_data(feats, labels)
 
-#loss_function = nn.BCEWithLogitsLoss()
-loss_function = nn.MSELoss()
-trainer = Trainer(net=net, optim=opt, loss_function=loss_function, train_loader_X=train_loader_X, train_loader_Y=train_loader_Y)
+  # B, Time, Features/Label
+  net = Predictor()
+  net = net.to(device)
+  opt = optim.RMSprop(net.parameters(), lr=0.03)
 
-losses = trainer.train(NUM_EPOCH)
+  #loss_function = nn.BCEWithLogitsLoss()
+  loss_function = nn.MSELoss()
+  trainer = Trainer(
+    net=net, optim=opt, loss_function=loss_function,
+    train_loader_X=train_loader_X, train_loader_Y=train_loader_Y
+  )
 
+  losses = trainer.train(NUM_EPOCH)
 
-for data in range(len(test_X)):
-    #print(test_X.size())
-    #print(test_X[data].size())
-    #print(test_X[data,].size())
-    X = test_X[data,].to(device)
-    y = test_Y[data,].to(device)
-    output = net(X)
-    print("output")
-    print(output[:10])
-    print("y")
-    print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
+  if show_test_loss:
+    for data in range(len(test_X)):
+      X = test_X[data,].to(device)
+      y = test_Y[data,].to(device)
+      output = net(X)
+      print("output")
+      print(output[:10])
+      print("y")
+      print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
+  return net
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
-def predict_trust(model,
+def predict_trust(
+  model,
   total_ratings, n_total_ratings,
 
   rtr_sums, n_rtr, rte_sums, n_rte,
@@ -292,4 +296,4 @@ def predict_trust(model,
     feats[6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
     feats[7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
     feats[8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
-    return   model.net(feats)
+    return  model.net(feats)

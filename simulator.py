@@ -6,6 +6,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import math
+from .model import predict_trust
 
 # Unbiased nodes are trying to figure out which nodes in the system are trustworthy and rate
 # based on that.
@@ -18,7 +19,7 @@ OMNISCIENT="omniscient"
 class Phase:
   def __init__(
     self,
-    phase_size:int=1000,
+    phase_len:int=1000,
     num:int=1000,
   ):
     self.t = 0
@@ -31,9 +32,9 @@ class Phase:
 
     self.neighborhood = {}
     self.num_neighborhood = {}
-    self.phase_size = phase_size
+    self.phase_len = phase_len
 
-  def is_full(self): return self.t == self.phase_size
+  def is_full(self): return self.t == self.phase_len
   def add_tx(self, src, dst, rating):
     self.total_ratings += rating
     self.n_total += 1
@@ -61,8 +62,9 @@ class Simulator():
 
     unknown_thresh = 1,
     predictor = None,
+    phase_len = 50,
   ):
-    self.new_phase = lambda: Phase()
+    self.new_phase = lambda: Phase(num=size, phase_len=phase_len)
     self.G = nx.DiGraph()
     self.t = 0
     self.prev_phase = None
@@ -225,5 +227,7 @@ def main():
   )
   plt.legend()
   plt.show()
+
+def run_with_predictor()
 
 if __name__ == "__main__": main()
