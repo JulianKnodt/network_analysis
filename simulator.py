@@ -6,7 +6,9 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import math
-from .model import predict_trust
+
+# import model to use for predictions
+from model import predict_trust, train_model
 
 # Unbiased nodes are trying to figure out which nodes in the system are trustworthy and rate
 # based on that.
@@ -94,7 +96,11 @@ class Simulator():
 
     if src_kind is UNBIASED:
       if self.predictor is not None and self.prev_phase is not None:
-        rating = self.predictor(
+        rating = predict_trust(
+          self.predictor,
+
+          src, dst,
+
           self.global_phase.total_ratings,
           self.global_phase.n_total,
 
@@ -193,13 +199,16 @@ def analysis_of_num_malicious():
   plt.plot(xs, ys)
   plt.show()
 
-def analysis_of_iterations_on_convergence(num_mal, num_unb=600):
+def analysis_of_iterations_on_convergence(num_mal, num_unb=600, predictor=None):
   steps_per = 500
   xs = np.arange(0, 30_000, steps_per)
   ys = []
-  sim = Simulator(size=1000, num_unbiased=num_unb, num_malicious=num_mal)
+  sim = Simulator(
+    size=1000, num_unbiased=num_unb, num_malicious=num_mal,
+    predictor=predictor,
+  )
   # warm up
-  for i in range(200): sim.step()
+  for i in range(500): sim.step()
 
   for m in tqdm(xs):
     for i in range(steps_per): sim.step()
@@ -209,17 +218,17 @@ def analysis_of_iterations_on_convergence(num_mal, num_unb=600):
     ys.append(bce_loss.log().item())
   plt.plot(xs, ys, label=f"{num_mal} Malicious")
 
-def main():
+def main(predictor=None):
   #analysis_of_num_malicious()
   plt.title("Change in cross-entropy w.r.t. information propagation in the network")
   plt.xlabel("Steps")
   plt.ylabel("Log cross-entropy")
-  analysis_of_iterations_on_convergence(400)
-  analysis_of_iterations_on_convergence(300)
-  analysis_of_iterations_on_convergence(200)
-  analysis_of_iterations_on_convergence(100)
-  analysis_of_iterations_on_convergence(000)
-  analysis_of_iterations_on_convergence(1000,0)
+  analysis_of_iterations_on_convergence(400, predictor=predictor)
+  analysis_of_iterations_on_convergence(300, predictor=predictor)
+  analysis_of_iterations_on_convergence(200, predictor=predictor)
+  analysis_of_iterations_on_convergence(100, predictor=predictor)
+  analysis_of_iterations_on_convergence(000, predictor=predictor)
+  analysis_of_iterations_on_convergence(1000,0, predictor=predictor)
   v = 10000
   rand = F.binary_cross_entropy(torch.rand(v), torch.rand(v)).log().item()
   plt.plot(
@@ -228,6 +237,8 @@ def main():
   plt.legend()
   plt.show()
 
-def run_with_predictor()
+def run_with_predictor(): main(predictor=train_model())
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+  main()
+  #run_with_predictor()

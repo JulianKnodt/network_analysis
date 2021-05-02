@@ -4,3 +4,4 @@
 graph.dot
 .gitignore
 .DS_Store
+__pycache__/

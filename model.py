@@ -6,15 +6,18 @@ import torch.nn as nn
 import torch.optim as optim
 import random as rand
 import torch.nn.functional as F
+from tqdm import trange
 
 #total # of transactions =35592
 device = torch.device("cpu")
 if torch.cuda.is_available():
   device = torch.device("cuda:0")
+
+EPS = 1e-8
 FEATURES = 9
 batch_size=256
 num_of_copy=1
-NUM_EPOCH=90*num_of_copy
+NUM_EPOCH=150*num_of_copy
 def normalize(v: [-10, 10]) -> [0,1]: return (v+10)/20
 
 # helper function
@@ -84,7 +87,6 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
   n_ratees = {}
   total_ratings = 0
   n_total_ratings = 0
-  epsilon = 1.e-17
 
   phases = T//phase_len
   G = nx.DiGraph()
@@ -146,12 +148,12 @@ def feature_vectors(max_node: int, src: [int], dst: [int], ratings: [float], pha
       feats[t, 0] = total_ratings/ n_total_ratings
       feats[t, 1] = rtr_sums[s]/n_rtr[s]
       feats[t, 2] = rte_sums[d]/n_rte[d]
-      feats[t, 3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
+      feats[t, 3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+EPS)
       feats[t, 4] = hist_rtr_sums[s]/hist_n_rtr[s]
       feats[t, 5] = hist_rte_sums[d]/hist_n_rte[d]
-      feats[t, 6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
-      feats[t, 7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
-      feats[t, 8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
+      feats[t, 6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+EPS)
+      feats[t, 7] = prev_rtr_sums[s]/(prev_n_rtr[s]+EPS)
+      feats[t, 8] = prev_rte_sums[d]/(prev_n_rte[d]+EPS)
       labels[t] = r
     for person in range(max_node):
       prev_rtr_sums[person] =rtr_sums[person]
@@ -225,7 +227,8 @@ class Trainer():
 
     def train(self,epochs):
         losses = []
-        for epoch in range(epochs):
+        t = trange(epochs)
+        for epoch in t:
             epoch_loss = 0.0
             epoch_steps = 0
             for data in range(len(self.train_loader_X)):
@@ -239,8 +242,7 @@ class Trainer():
                 epoch_loss += loss.item()
                 epoch_steps += 1
             losses.append(epoch_loss / epoch_steps)
-            #losses=(epoch_loss / epoch_steps)
-            print("epoch [%d]: loss %.3f" % (epoch+1, losses[-1]))
+            t.set_postfix(loss=f"{losses[-1]:.3f}")
         return losses
 
 
@@ -250,7 +252,7 @@ def train_model(show_test_loss=False):
   # B, Time, Features/Label
   net = Predictor()
   net = net.to(device)
-  opt = optim.RMSprop(net.parameters(), lr=0.03)
+  opt = optim.Adam(net.parameters(), lr=1e-5)
 
   #loss_function = nn.BCEWithLogitsLoss()
   loss_function = nn.MSELoss()
@@ -266,34 +268,43 @@ def train_model(show_test_loss=False):
       X = test_X[data,].to(device)
       y = test_Y[data,].to(device)
       output = net(X)
-      print("output")
-      print(output[:10])
-      print("y")
-      print(F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item())
+      loss = F.binary_cross_entropy_with_logits(output.squeeze(-1), y).mean().item()
+      print(f"output {output[:10]}, loss: {loss}")
   return net
 
 # Given some model, and a node "n", as well as a graph G which has prior ratings and timestamps,
 # and outputs a predicted "trust" in [0,1].
 def predict_trust(
   model,
+
+  src, dst,
+
   total_ratings, n_total_ratings,
 
-  rtr_sums, n_rtr, rte_sums, n_rte,
+  rtr_sums, n_rtr,
+
+  rte_sums, n_rte,
 
   nbhd_s,n_nbhd,
 
-  hist_rtr_sums, hist_n_rtr, hist_rte_sums, hist_n_rte, hist_nbhd_s,hist_n_nbhd,
+  hist_rtr_sums, hist_n_rtr,
 
-  prev_rte_sums, prev_n_rte, prev_rtr_sums, prev_n_rtr
+  hist_rte_sums, hist_n_rte,
+
+  hist_nbhd_s,hist_n_nbhd,
+
+  prev_rte_sums, prev_n_rte,
+
+  prev_rtr_sums, prev_n_rtr
 ):
-    feats = [0]*FEATURES
-    feats[0] = total_ratings/ n_total_ratings
-    feats[1] = rtr_sums[s]/n_rtr[s]
-    feats[2] = rte_sums[d]/n_rte[d]
-    feats[3] = check_entry(nbhd_s,s,d)/(check_entry(n_nbhd,s,d)+epsilon)
-    feats[4] = hist_rtr_sums[s]/hist_n_rtr[s]
-    feats[5] = hist_rte_sums[d]/hist_n_rte[d]
-    feats[6] = check_entry(hist_nbhd_s,s,d)/(check_entry(hist_n_nbhd,s,d)+epsilon)
-    feats[7] = prev_rtr_sums[s]/(prev_n_rtr[s]+epsilon)
-    feats[8] = prev_rte_sums[d]/(prev_n_rte[d]+epsilon)
-    return  model.net(feats)
+    feats = torch.zeros(FEATURES)
+    feats[0] = total_ratings/(n_total_ratings+EPS)
+    feats[1] = rtr_sums[src]/(n_rtr[src]+EPS)
+    feats[2] = rte_sums[dst]/(n_rte[dst]+EPS)
+    feats[3] = check_entry(nbhd_s,src,dst)/(check_entry(n_nbhd,src,dst)+EPS)
+    feats[4] = hist_rtr_sums[src]/(hist_n_rtr[src]+EPS)
+    feats[5] = hist_rte_sums[dst]/(hist_n_rte[dst]+EPS)
+    feats[6] = check_entry(hist_nbhd_s,src,dst)/(check_entry(hist_n_nbhd,src,dst)+EPS)
+    feats[7] = prev_rtr_sums[src]/(prev_n_rtr[src]+EPS)
+    feats[8] = prev_rte_sums[dst]/(prev_n_rte[dst]+EPS)
+    return  model(feats)
